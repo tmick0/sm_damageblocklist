@@ -15,6 +15,6 @@ project:
       - source: /autoexecconfig.inc
         dest: /addons/sourcemod/scripting/include/autoexecconfig.inc
   root: /
-  output: /sourcemod/plugins
+  output: /addons/sourcemod/plugins
   targets:
     - damageblocklist
