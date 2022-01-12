@@ -41,14 +41,20 @@ public void OnPluginStart() {
     // init hooks
     HookConVarChange(CvarFilterFilePath, ReloadFilterFile);
     HookConVarChange(CvarFilterEnable, UpdateState);
+    HookEvent("player_spawn", AddHookToPlayer);
 
     // load filter
     LoadFilter();
-
 }
 
-public void OnClientPutInServer(int client) {
+public Action AddHookToPlayer(Handle event, const char[] name, bool dontBroadcast) {
+    if (!FilterEnable) {
+        return Plugin_Continue;
+    }
+
+    int client = GetClientOfUserId(GetEventInt(event, "userid"));
     SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+    return Plugin_Handled;
 }
 
 public Action OnTakeDamage(int victim, int& attacker, int &inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3])
