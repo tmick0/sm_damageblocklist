@@ -17,18 +17,24 @@ public Plugin myinfo =
 
 #define CVAR_FILTERENABLE "sm_damageblocklist_enable"
 #define CVAR_FILTERFILEPATH "sm_damageblocklist_file"
+#define CVAR_FILTERMODE "sm_damageblocklist_mode"
 #define CVAR_DEBUG "sm_damageblocklist_debug"
 
 #define ENTITY_NAME_MAX 128
 
+#define MODE_BLOCK 0
+#define MODE_ALLOW 1
+
 // convars
 ConVar CvarFilterFilePath;
 ConVar CvarFilterEnable;
+ConVar CvarFilterMode;
 ConVar CvarDebug;
 
 // plugin state
 ArrayList FilterEntities;
 int FilterEnable;
+int FilterMode;
 int Debug;
 
 public void OnPluginStart() {
@@ -36,21 +42,23 @@ public void OnPluginStart() {
     AutoExecConfig_SetCreateDirectory(true);
     AutoExecConfig_SetCreateFile(true);
     AutoExecConfig_SetFile("plugin_damageblocklist");
-    CvarFilterFilePath = AutoExecConfig_CreateConVar(CVAR_FILTERFILEPATH, "", "path to list of entities to block damage from");
     CvarFilterEnable = AutoExecConfig_CreateConVar(CVAR_FILTERENABLE, "0", "enable (1) or disable (0) the plugin");
+    CvarFilterMode = AutoExecConfig_CreateConVar(CVAR_FILTERMODE, "0", "file filter functions as a blocklist (0) or allowlist (1)");
     CvarDebug = AutoExecConfig_CreateConVar(CVAR_DEBUG, "0", "enable (1) or disable (0) debug output");
+    CvarFilterFilePath = AutoExecConfig_CreateConVar(CVAR_FILTERFILEPATH, "", "path to list of entities to block damage from");
     AutoExecConfig_ExecuteFile();
     AutoExecConfig_CleanFile();
 
     // init hooks
     HookConVarChange(CvarFilterFilePath, ReloadFilterFile);
     HookConVarChange(CvarFilterEnable, CvarsUpdated);
+    HookConVarChange(CvarFilterMode, CvarsUpdated);
     HookConVarChange(CvarDebug, CvarsUpdated);
     HookEvent("player_spawn", AddHookToPlayer);
 
     // initialize configuration
-    LoadFilter();
     UpdateState();
+    LoadFilter();
 }
 
 public Action AddHookToPlayer(Handle event, const char[] name, bool dontBroadcast) {
@@ -82,7 +90,8 @@ public Action OnTakeDamage(int victim, int& attacker, int &inflictor, float& dam
     char entity[ENTITY_NAME_MAX];
     GetEdictClassname(weapon, entity, ENTITY_NAME_MAX);
 
-    if (FilterEntities.FindString(entity) == -1) {
+    bool in_filter = FilterEntities.FindString(entity) != -1;
+    if ((FilterMode == MODE_ALLOW && in_filter) || (FilterMode == MODE_BLOCK && !in_filter)) {
         if (Debug) {
             LogMessage("allowing %f damage from \"%s\" (%d)", damage, entity, weapon);
         }
@@ -108,6 +117,7 @@ void CvarsUpdated(ConVar convar, const char[] oldvalue, const char[] newvalue) {
 
 void UpdateState() {
     FilterEnable = GetConVarInt(CvarFilterEnable);
+    FilterMode = GetConVarInt(CvarFilterMode);
     Debug = GetConVarInt(CvarDebug);
 }
 
@@ -134,7 +144,7 @@ void LoadFilter() {
         if (strlen(line) > 0 && line[0] != '#') {
             FilterEntities.PushString(line);
             if (Debug) {
-                LogMessage("added %s to blocklist", line);
+                LogMessage("added %s to filter", line);
             }
             ++count;
         }
