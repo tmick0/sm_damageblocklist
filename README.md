@@ -14,6 +14,8 @@ This has only been tested with CS:GO, but could possibly work with other games.
 
 **sm_damageblocklist_file**: path to file containing a newline-separated list of entities which will not deal damage
 
+**sm_damageblocklist_immediate**: 0 to wait til next round to apply blocklist, 1 to apply immediately on enable (default 0)
+
 ### File format
 
 The file is a newline-separated list of entities which will not deal damage, e.g.

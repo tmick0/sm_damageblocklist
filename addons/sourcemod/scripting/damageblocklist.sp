@@ -11,7 +11,7 @@ public Plugin myinfo =
     name = "damageblocklist",
     author = "tmick0",
     description = "Allows to specify a list of weapons which will do no damage",
-    version = "0.1",
+    version = "0.2",
     url = "github.com/tmick0/sm_damageblocklist"
 };
 
@@ -19,6 +19,7 @@ public Plugin myinfo =
 #define CVAR_FILTERFILEPATH "sm_damageblocklist_file"
 #define CVAR_FILTERMODE "sm_damageblocklist_mode"
 #define CVAR_DEBUG "sm_damageblocklist_debug"
+#define CVAR_IMMEDIATE "sm_damageblocklist_immediate"
 
 #define ENTITY_NAME_MAX 128
 
@@ -29,12 +30,14 @@ public Plugin myinfo =
 ConVar CvarFilterFilePath;
 ConVar CvarFilterEnable;
 ConVar CvarFilterMode;
+ConVar CvarImmediate;
 ConVar CvarDebug;
 
 // plugin state
 ArrayList FilterEntities;
 int FilterEnable;
 int FilterMode;
+int Immediate;
 int Debug;
 
 public void OnPluginStart() {
@@ -46,6 +49,7 @@ public void OnPluginStart() {
     CvarFilterMode = AutoExecConfig_CreateConVar(CVAR_FILTERMODE, "0", "file filter functions as a blocklist (0) or allowlist (1)");
     CvarDebug = AutoExecConfig_CreateConVar(CVAR_DEBUG, "0", "enable (1) or disable (0) debug output");
     CvarFilterFilePath = AutoExecConfig_CreateConVar(CVAR_FILTERFILEPATH, "", "path to list of entities to block damage from");
+    CvarImmediate = AutoExecConfig_CreateConVar(CVAR_IMMEDIATE, "0", "if enabled (1), applies hooks to players immediately instead of on the next round")
     AutoExecConfig_ExecuteFile();
     AutoExecConfig_CleanFile();
 
@@ -54,20 +58,24 @@ public void OnPluginStart() {
     HookConVarChange(CvarFilterEnable, CvarsUpdated);
     HookConVarChange(CvarFilterMode, CvarsUpdated);
     HookConVarChange(CvarDebug, CvarsUpdated);
-    HookEvent("player_spawn", AddHookToPlayer);
+    HookConVarChange(CvarImmediate, CvarsUpdated);
+    HookEvent("player_spawn", OnPlayerSpawn);
 
     // initialize configuration
     UpdateState();
     LoadFilter();
 }
 
-public Action AddHookToPlayer(Handle event, const char[] name, bool dontBroadcast) {
+void AddHookToPlayer(int client) {
+    SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+}
+
+public Action OnPlayerSpawn(Handle event, const char[] name, bool dontBroadcast) {
     if (!FilterEnable) {
         return Plugin_Continue;
     }
 
-    int client = GetClientOfUserId(GetEventInt(event, "userid"));
-    SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+    AddHookToPlayer(GetClientOfUserId(GetEventInt(event, "userid")));
     return Plugin_Handled;
 }
 
@@ -116,9 +124,20 @@ void CvarsUpdated(ConVar convar, const char[] oldvalue, const char[] newvalue) {
 }
 
 void UpdateState() {
+    int prev_enable = FilterEnable;
+
     FilterEnable = GetConVarInt(CvarFilterEnable);
     FilterMode = GetConVarInt(CvarFilterMode);
+    Immediate = GetConVarInt(CvarImmediate);
     Debug = GetConVarInt(CvarDebug);
+
+    if (Immediate && FilterEnable && !prev_enable) {
+        for (int i = 1; i <= MaxClients; ++i) {
+            if (IsClientInGame(i) && !IsFakeClient(i) && IsPlayerAlive(i)) {
+                AddHookToPlayer(i);
+            }
+        }
+    }
 }
 
 void LoadFilter() {
